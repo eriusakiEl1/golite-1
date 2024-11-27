@@ -1,14 +1,13 @@
 import React, { useState } from "react";
-import CodeEditor from "./components/Editor"; // Tu editor Monaco
-import AnalysisButtons from "./components/AnalysisButtons"; // Botones de análisis
-import TokenTable from "./components/TokenTable"; // Tabla de tokens
-import Footer from "./components/Result"; // Tabla de errores
-import { analyzeLexical } from "./analyzers/lexico"; // Importa la lógica del análisis léxico
-import { analyzeSyntax } from './analyzers/sintactico';
-import { Grid, Box} from '@mui/material';
-import FileUploadButton from './components/FileUploadButton';
-import TeamModal from './components/TeamModal'; // Ajusta la ruta según tu proyecto
-
+import CodeEditor from "./components/Editor.js"; // Tu editor Monaco
+import AnalysisButtons from "./components/AnalysisButtons.js"; // Botones de análisis
+import TokenTable from "./components/TokenTable.js"; // Tabla de tokens
+import Footer from "./components/Result.js"; // Tabla de errores
+import { analyzeLexical } from "./analyzers/lexico.js"; // Importa la lógica del análisis léxico
+import { Tabs, Tab, Typography, Grid, Box} from '@mui/material';
+import FileUploadButton from './components/FileUploadButton.js';
+import TeamModal from './components/TeamModal.js'; // Ajusta la ruta según tu proyecto
+const parser = require('./analyzers/sintactico.js'); // Importa el parser directamente
 
 const App = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -20,10 +19,15 @@ const App = () => {
     const [syntaxTree, setSyntaxTree] = useState(null);
     const [isSemanticAnalysisEnabled, setSemanticAnalysisEnabled] = useState(false); // Estado del análisis semántico
     const [resultado, setResultado] = useState(''); // Mensaje para la consola de resultado
+    const [currentTab, setCurrentTab] = useState(0); // Estado para el tab actual
 
     const clearErrors = () => {
         setErrors([]);
         setSyntaxErrors([]);
+    };
+
+    const handleTabChange = (event, newValue) => {
+        setCurrentTab(newValue);
     };
 
     const handleFileUpload = (fileContent) => {
@@ -65,21 +69,24 @@ const App = () => {
     
     const handleSyntaxAnalysis = () => {
         try {
-            // Ejecutar el análisis sintáctico
-            const { success, syntaxTree, errors: syntaxErrors } = analyzeSyntax(code);
-    
-            if (success) {
+            const analysis = analyzeSyntax(code);
+            if (analysis.success) {
                 setResultado("Análisis Sintáctico Completado: No se encontraron errores.");
-                setSyntaxTree(syntaxTree); // Guarda el árbol de derivación
+                setSyntaxTree(analysis.syntaxTree);
+                setSyntaxErrors([]); // Limpia los errores sintácticos
                 setSemanticAnalysisEnabled(true); // Habilitar análisis semántico
-                setSyntaxErrors([]); // Limpiar errores sintácticos
             } else {
                 setResultado("Análisis Sintáctico Completado: Se encontraron errores.");
-                setSyntaxErrors(syntaxErrors); // Mostrar los errores sintácticos
+                const formattedErrors = analysis.errors.map(err => ({
+                    error: err.message || "Error no especificado",
+                    line: err.line || "-",
+                    column: err.column || "-",
+                }));
+                setSyntaxErrors(formattedErrors);
+                setSyntaxTree(null); // Vacía el árbol
                 setSemanticAnalysisEnabled(false); // Deshabilitar análisis semántico
             }
         } catch (error) {
-            // Manejo de errores inesperados
             setResultado("Error al ejecutar el análisis sintáctico.");
             setSyntaxErrors([
                 {
@@ -88,26 +95,31 @@ const App = () => {
                     column: "-",
                 },
             ]);
+            setSyntaxTree(null);
             setSemanticAnalysisEnabled(false);
         }
     };
     
-
-    // Análisis sintáctico
-    const handleSyntaxAnalysis1 = () => {
+    const analyzeSyntax = (code) => {
         try {
-            // Ejecutar el análisis sintáctico
-            //parser.parse(code);
-
-            // Si no hay errores:
-            setErrors(["No se encontraron errores"]); // Mensaje en la tabla
-            setSemanticAnalysisEnabled(true); // Habilitar Análisis Semántico
+            const syntaxTree = parser.parse(code); // Usa el parser importado
+            return {
+                success: true,
+                syntaxTree,
+            };
         } catch (error) {
-            // Si hay errores:
-            setErrors([error.message]); // Mostrar los errores en la tabla
-            setSemanticAnalysisEnabled(false); // Desactivar Análisis Semántico
+            return {
+                success: false,
+                errors: [
+                    {
+                        message: error.message || "Error desconocido",
+                        line: error.location?.start.line || "-",
+                        column: error.location?.start.column || "-",
+                    },
+                ],
+            };
         }
-    };
+    };    
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#3f555d', color: '#fff' }}>            
@@ -137,15 +149,41 @@ const App = () => {
 
             <TeamModal isOpen={isModalOpen} onClose={handleCloseModal} />
             {/* Main Content */}
-            <Grid container spacing={3} sx={{ flex: 1 }}>
-                    {/* Editor */}
-                <Grid item xs={12} md={8}>
-                    <Box sx={{ padding: 2 }}>
-                        <CodeEditor code={code} setCode={setCode} />
-                    </Box>
-                </Grid>
-                <TokenTable tokens={tokens} />
+            <Grid item xs={12} md={8}>
+                <Box sx={{ padding: 2 }}>
+                    <CodeEditor code={code} setCode={setCode} />
+                </Box>
             </Grid>
+
+            <Grid item xs={12} md={4}>
+                <Box>
+                    <Tabs
+                        value={currentTab}
+                        onChange={handleTabChange}
+                        aria-label="Analysis Tabs"
+                        textColor="inherit"
+                        indicatorColor="secondary"
+                        sx={{ backgroundColor: '#2c4343' }}
+                    >
+                        <Tab label="Tokens" />
+                        <Tab label="Árbol Sintáctico" />
+                    </Tabs>
+
+                    {currentTab === 0 && <TokenTable tokens={tokens} />}
+                    {currentTab === 1 && (
+                        <Box sx={{ padding: 2, backgroundColor: '#394a4a', borderRadius: 2 }}>
+                            {syntaxTree ? (
+                                <pre style={{ color: '#8bb3bf' }}>
+                                    {JSON.stringify(syntaxTree, null, 2)}
+                                </pre>
+                            ) : (
+                                <Typography>No se ha generado un árbol sintáctico.</Typography>
+                            )}
+                        </Box>
+                    )}
+                </Box>
+            </Grid>
+
             <Footer
                 resultado={resultado} // Mensaje general del resultado
                 errors={[...errors, ...syntaxErrors]} // Combina errores léxicos y sintácticos

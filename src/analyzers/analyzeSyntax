@@ -1,0 +1,30 @@
+// src/analyzers/analyzeSyntax.js
+const parser = require('./sintactico.js'); // Importar el parser usando require
+
+/**
+ * Analiza el código fuente y genera un árbol sintáctico.
+ * @param {string} code - El código fuente a analizar.
+ * @returns {object} Un objeto con el resultado del análisis.
+ */
+function analyzeSyntax(code) {
+    try {
+        const syntaxTree = parser.parse(code); // Llama a la función `parse`
+        return {
+            success: true,
+            syntaxTree,
+        };
+    } catch (error) {
+        return {
+            success: false,
+            errors: [
+                {
+                    message: error.message || "Error desconocido",
+                    line: error.location?.start.line || "-",
+                    column: error.location?.start.column || "-",
+                },
+            ],
+        };
+    }
+}
+
+module.exports = { analyzeSyntax }; // Exporta la función usando CommonJS
