@@ -14,7 +14,7 @@ export function analyzeLexical(code) {
             type: (value) => (value.includes('.') ? 'Número Real' : 'Número'),
         },
         assign: '=', // Operador de asignación
-        punctuation: [':', '{', '}', '(', ')', ';'], // Delimitadores y separadores
+        punctuation: [':', '{', '}', '(', ')', ';', ","], // Delimitadores y separadores
         operator: ['<', '>', '+', '-', '*', '/'], // Operadores aritméticos y de comparación
         string: {
             match: /"(?:\\["\\]|[^\n"\\])*"/,

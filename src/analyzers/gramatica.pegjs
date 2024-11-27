@@ -1,79 +1,133 @@
-// Inicio de la gramática
-
 start
-  = _ statement*
+  = _ stmts:statements* _ {
+      return stmts;
+    }
 
-// Declaraciones
+statements
+  = statement _ ";" _
+
 statement
   = variableDeclaration
   / functionDeclaration
   / assignment
+  / conditional
+  / loop
   / block
 
 variableDeclaration
-  = "var" _ id:identifier _ ":" _ dt:type {
-      return { type: "VariableDeclaration", name: id, dataType: dt };
+  = "var" _ id:identifier _ ":" _ type:dataType {
+      return { type: "VariableDeclaration", name: id, dataType: type };
     }
 
 functionDeclaration
-  = "func" _ id:identifier _ "(" params:parameterList? ")" _ b:block {
-      return { type: "FunctionDeclaration", name: id, parameters: params || [], body: b };
+  = "func" _ id:identifier _ "(" params:parameterList? ")" _ functionBody:block {
+      return { type: "FunctionDeclaration", name: id, parameters: params || [], body: functionBody };
     }
 
 assignment
-  = id:identifier _ "=" _ val:value {
-      return { type: "Assignment", variable: id, value: val };
+  = id:identifier _ "=" _ value:expression {
+      return { type: "Assignment", variable: id, value: value };
     }
 
-// Bloques y listas
+// Conditionals
+conditional
+  = "if" _ "("? _ condition:expression _ ")"? _ thenBlock:block elsePart:("else" _ elseBlock:block)? {
+      return {
+        type: "IfStatement",
+        condition: condition,
+        thenBlock: thenBlock,
+        elseBlock: elsePart ? elsePart[1] : null
+      };
+    }
+
+// Loops
+loop
+  = "for" _ init:assignment? ";" _ condition:expression? ";" _ update:assignment? _ loopBody:block {
+      return { type: "ForLoop", init: init || null, condition: condition || null, update: update || null, body: loopBody };
+    }
+  / "for" _ condition:expression _ loopBody:block {
+      return { type: "WhileLoop", condition: condition, body: loopBody };
+    }
+  / "for" _ loopBody:block {
+      return { type: "InfiniteLoop", body: loopBody };
+    }
+
+// Blocks and Lists
 block
-  = "{" _ statements:statement* _ "}" {
-      return { type: "Block", statements };
+  = "{" _ stmts:statements* _ "}" {
+      return { type: "Block", statements: stmts };
     }
 
 parameterList
-  = first:parameter rest:(_ "," _ parameter)* {
-      return [first].concat(rest.map(r => r[3])); // Extraer solo el último elemento de cada sub-array
+  = first:param rest:(_ "," _ param)* {
+      return [first].concat(rest.map(r => r[3]));
     }
 
-parameter
-  = id:identifier _ ":" _ dt:type {
-      return { name: id, dataType: dt };
+param
+  = id:identifier _ ":" _ type:dataType {
+      return { name: id, dataType: type };
     }
 
-// Tipos de datos
-type
+dataType
   = "int" { return "int"; }
   / "float" { return "float"; }
   / "string" { return "string"; }
   / "bool" { return "bool"; }
 
-// Valores
-value
+// Expressions
+expression
+  = comparison additive*
+
+additive
+  = _ op:("+" / "-") _ right:comparison {
+      return { type: "AdditionOrSubtraction", operator: op, right: right };
+    }
+
+comparison
+  = left:term comp:comparisonOperator right:term {
+      return { type: "Comparison", operator: comp, left: left, right: right };
+    }
+  / term
+
+term
+  = factor multiplicative*
+
+multiplicative
+  = _ op:("*" / "/") _ right:factor {
+      return { type: "MultiplicationOrDivision", operator: op, right: right };
+    }
+
+factor
   = number
   / string
   / boolean
+  / identifier
+  / "(" _ expression _ ")"
+
+comparisonOperator
+  = "==" / "!=" / "<=" / ">=" / "<" / ">"
 
 number
   = [0-9]+ ("." [0-9]+)? {
-      return parseFloat(text());
+      return { type: "Number", value: parseFloat(text()) };
     }
 
 string
-  = "\"" [^\"]* "\"" {
-      return text().slice(1, -1);
+  = "\"" chars:[^\"]* "\"" {
+      return { type: "String", value: chars.join("") };
     }
 
 boolean
-  = "true" { return true; }
-  / "false" { return false; }
+  = "true" { return { type: "Boolean", value: true }; }
+  / "false" { return { type: "Boolean", value: false }; }
 
-// Identificadores
 identifier
   = [a-zA-Z_][a-zA-Z0-9_]* {
       return text();
     }
 
-// Espacios en blanco
+// Whitespace
 _ "whitespace"
-  = [ \t\n\r]*
+  = [ \t\n\r]* {
+      return null;
+    }
