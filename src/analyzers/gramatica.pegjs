@@ -4,11 +4,10 @@ start
     }
 
 statements
-  = statement _ ";" _
+  = statement (";" _)? // Permitir `;` opcional después de cada declaración
 
 statement
   = variableDeclaration
-  / functionDeclaration
   / assignment
   / conditional
   / loop
@@ -19,19 +18,14 @@ variableDeclaration
       return { type: "VariableDeclaration", name: id, dataType: type };
     }
 
-functionDeclaration
-  = "func" _ id:identifier _ "(" params:parameterList? ")" _ functionBody:block {
-      return { type: "FunctionDeclaration", name: id, parameters: params || [], body: functionBody };
-    }
-
 assignment
   = id:identifier _ "=" _ value:expression {
       return { type: "Assignment", variable: id, value: value };
     }
 
-// Conditionals
+// Condicionales
 conditional
-  = "if" _ "("? _ condition:expression _ ")"? _ thenBlock:block elsePart:("else" _ elseBlock:block)? {
+  = "if" _ "(" _ condition:comparison _ ")" _ thenBlock:block elsePart:("else" _ elseBlock:block)? {
       return {
         type: "IfStatement",
         condition: condition,
@@ -40,32 +34,22 @@ conditional
       };
     }
 
-// Loops
+// Bucles
 loop
-  = "for" _ init:assignment? ";" _ condition:expression? ";" _ update:assignment? _ loopBody:block {
+  = "for" _ init:assignment? ";" _ condition:comparison? ";" _ update:assignment? _ loopBody:block {
       return { type: "ForLoop", init: init || null, condition: condition || null, update: update || null, body: loopBody };
     }
-  / "for" _ condition:expression _ loopBody:block {
+  / "for" _ condition:comparison _ loopBody:block {
       return { type: "WhileLoop", condition: condition, body: loopBody };
     }
   / "for" _ loopBody:block {
       return { type: "InfiniteLoop", body: loopBody };
     }
 
-// Blocks and Lists
+// Bloques
 block
   = "{" _ stmts:statements* _ "}" {
       return { type: "Block", statements: stmts };
-    }
-
-parameterList
-  = first:param rest:(_ "," _ param)* {
-      return [first].concat(rest.map(r => r[3]));
-    }
-
-param
-  = id:identifier _ ":" _ type:dataType {
-      return { name: id, dataType: type };
     }
 
 dataType
@@ -74,39 +58,40 @@ dataType
   / "string" { return "string"; }
   / "bool" { return "bool"; }
 
-// Expressions
+// Comparaciones
+comparison
+  = left:additive _ op:comparisonOperator _ right:additive {
+      return { type: "Comparison", operator: op, left: left, right: right };
+    }
+  / additive
+
+// Expresiones
 expression
-  = comparison additive*
+  = additive
 
 additive
-  = _ op:("+" / "-") _ right:comparison {
-      return { type: "AdditionOrSubtraction", operator: op, right: right };
-    }
-
-comparison
-  = left:term comp:comparisonOperator right:term {
-      return { type: "Comparison", operator: comp, left: left, right: right };
+  = left:term _ op:("+" / "-") _ right:term {
+      return { type: "AdditionOrSubtraction", operator: op, left: left, right: right };
     }
   / term
 
 term
-  = factor multiplicative*
-
-multiplicative
-  = _ op:("*" / "/") _ right:factor {
-      return { type: "MultiplicationOrDivision", operator: op, right: right };
+  = left:factor _ op:("*" / "/") _ right:factor {
+      return { type: "MultiplicationOrDivision", operator: op, left: left, right: right };
     }
+  / factor
 
 factor
-  = number
+  = "(" _ expr:expression _ ")" { return expr; }
+  / number
   / string
   / boolean
   / identifier
-  / "(" _ expression _ ")"
 
 comparisonOperator
   = "==" / "!=" / "<=" / ">=" / "<" / ">"
 
+// Primitivas
 number
   = [0-9]+ ("." [0-9]+)? {
       return { type: "Number", value: parseFloat(text()) };
@@ -126,7 +111,7 @@ identifier
       return text();
     }
 
-// Whitespace
+// Espacios
 _ "whitespace"
   = [ \t\n\r]* {
       return null;
